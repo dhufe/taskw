@@ -11,13 +11,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
         taskwarrior-version: [2.5.0, 2.5.1, 2.5.3, 3.4.2]
-        # exclude:
-          # Taskwarrior 2.5.3 only supported on Python 3.7+
-          # (Implicitly handled now as 3.5 and 3.6 are removed)
-          # 'apt' usually provides v2.x, keep it for modern pythons
-          # (Optional: you can also exclude apt for very old pythons if it fails)
 
     steps:
     - uses: actions/checkout@v4
