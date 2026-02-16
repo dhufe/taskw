@@ -29,14 +29,25 @@ jobs:
           sudo apt-get update && sudo apt-get install -y taskwarrior
         else
           VERSION="${{ matrix.taskwarrior-version }}"
-          # Correct URL for Taskwarrior binary releases
-          URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.linux-amd64.tar.gz"
+          # Install build dependencies
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libuuid1 uuid-dev gnutls-bin libgnutls28-dev
+          
+          # For Taskwarrior 3.x, we need Rust
+          if [[ $VERSION == 3* ]]; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source $HOME/.cargo/env
+          fi
+
+          URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
           echo "Downloading $URL"
           curl -L -o "task.tar.gz" "$URL"
           tar xzf "task.tar.gz"
-          # Find the binary - it might be in a subdir or root of the tar
-          BINARY=$(find . -name task -type f -executable | head -n 1)
-          sudo mv "$BINARY" /usr/local/bin/
+          cd "task-${VERSION}"
+          cmake -DCMAKE_BUILD_TYPE=Release .
+          make
+          sudo make install
+          cd ..
         fi
         task --version
 
