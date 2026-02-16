@@ -11,10 +11,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Added modern Python versions
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-        # Testing against standard Ubuntu package (v2.x) and manual v3.x
-        task-source: [apt, latest-v3]
+        # Standard 'apt' for v2.x, or specific versions for v3.x
+        taskwarrior-version: [apt, 3.4.2]
 
     steps:
     - uses: actions/checkout@v4
@@ -24,28 +23,24 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install Taskwarrior (apt)
-      if: matrix.task-source == 'apt'
-      run: sudo apt-get update && sudo apt-get install -y taskwarrior
-
-    - name: Install Taskwarrior (v3)
-      if: matrix.task-source == 'latest-v3'
+    - name: Install Taskwarrior
       run: |
-        # Download pre-built binary for Linux from official releases
-        # (This is much faster than compiling)
-        curl -LO https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v3.4.2/task-3.4.2.linux-amd64.tar.gz
-        tar xzf task-3.4.2.linux-amd64.tar.gz
-        sudo mv task-3.4.2.linux-amd64/task /usr/local/bin/
+        if [ "${{ matrix.taskwarrior-version }}" = "apt" ]; then
+          sudo apt-get update && sudo apt-get install -y taskwarrior
+        else
+          VERSION="${{ matrix.taskwarrior-version }}"
+          curl -LO "https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.linux-amd64.tar.gz"
+          tar xzf "task-${VERSION}.linux-amd64.tar.gz"
+          sudo mv "task-${VERSION}.linux-amd64/task" /usr/local/bin/
+        fi
         task --version
 
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        # Install dependencies + the package in editable mode
-        pip install -r requirements.txt
-        pip install -r test_requirements.txt
+        pip install -r requirements.txt -r test_requirements.txt
         pip install -e .
 
     - name: Run Tests
-      run: |
+      run: pytest
         pytest
