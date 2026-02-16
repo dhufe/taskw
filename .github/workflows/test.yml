@@ -7,13 +7,12 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-        # Standard 'apt' for v2.x, or specific versions for v2.x/v3.x
-        taskwarrior-version: [apt, 2.5.0, 2.5.1, 2.5.3, 3.4.2]
+        taskwarrior-version: [2.5.0, 2.5.1, 2.5.3, 3.4.2]
         exclude:
           # Taskwarrior 2.5.3 only supported on Python 3.7+
           - python-version: "3.5"
@@ -35,54 +34,51 @@ jobs:
     - name: Install Taskwarrior
       run: |
         VERSION="${{ matrix.taskwarrior-version }}"
-        if [ "$VERSION" = "apt" ]; then
-          sudo apt-get update && sudo apt-get install -y taskwarrior
+        # Try to find exactly matching version in apt
+        sudo apt-get update
+        
+        # Use apt-cache madison to find if the requested version is available in any form (e.g. with suffixes)
+        APT_VERSION=$(apt-cache madison taskwarrior | grep "$VERSION" | head -n 1 | awk '{print $3}')
+        
+        if [ -n "$APT_VERSION" ]; then
+          echo "Found version $VERSION in apt as $APT_VERSION. Installing..."
+          sudo apt-get install -y "taskwarrior=$APT_VERSION"
         else
-          # Try to find exactly matching version in apt
-          sudo apt-get update
+          echo "Version $VERSION not available in apt. Compiling from source..."
           
-          # Use apt-cache madison to find if the requested version is available in any form (e.g. with suffixes)
-          APT_VERSION=$(apt-cache madison taskwarrior | grep "$VERSION" | head -n 1 | awk '{print $3}')
+          # Install build dependencies
+          sudo apt-get install -y cmake build-essential libuuid1 uuid-dev gnutls-bin libgnutls28-dev
           
-          if [ -n "$APT_VERSION" ]; then
-            echo "Found version $VERSION in apt as $APT_VERSION. Installing..."
-            sudo apt-get install -y "taskwarrior=$APT_VERSION"
-          else
-            echo "Version $VERSION not available in apt. Compiling from source..."
-            
-            # Install build dependencies
-            sudo apt-get install -y cmake build-essential libuuid1 uuid-dev gnutls-bin libgnutls28-dev
-            
-            # For Taskwarrior 3.x, we need Rust
-            if [[ $VERSION == 3* ]]; then
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-              source $HOME/.cargo/env
-            fi
-
-            # Handle directory naming differences between releases
-            if [[ $VERSION == 3* ]]; then
-              URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
-              DIR="task-${VERSION}"
-            else
-              URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
-              DIR="task-${VERSION}"
-            fi
-            
-            echo "Downloading $URL"
-            if ! curl -L -o "task.tar.gz" "$URL"; then
-               echo "Failed to download $URL, trying alternative..."
-               URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/taskwarrior-${VERSION}.tar.gz"
-               DIR="taskwarrior-${VERSION}"
-               curl -L -o "task.tar.gz" "$URL"
-            fi
-
-            tar xzf "task.tar.gz"
-            cd "$DIR"
-            cmake -DCMAKE_BUILD_TYPE=Release .
-            make
-            sudo make install
-            cd ..
+          # For Taskwarrior 3.x, we need Rust
+          if [[ $VERSION == 3* ]]; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source $HOME/.cargo/env
           fi
+
+          # Handle directory naming differences between releases
+          # We try standard release assets first, then fallback to GitHub archives
+          URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
+          DIR="task-${VERSION}"
+          
+          echo "Downloading $URL"
+          if ! curl -fL -o "task.tar.gz" "$URL"; then
+             echo "Failed to download $URL, trying alternative release asset..."
+             URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/taskwarrior-${VERSION}.tar.gz"
+             DIR="taskwarrior-${VERSION}"
+             if ! curl -fL -o "task.tar.gz" "$URL"; then
+                echo "Failed to download release asset, falling back to GitHub archive..."
+                URL="https://github.com/GothenburgBitFactory/taskwarrior/archive/refs/tags/v${VERSION}.tar.gz"
+                DIR="taskwarrior-${VERSION}"
+                curl -fL -o "task.tar.gz" "$URL"
+             fi
+          fi
+
+          tar xzf "task.tar.gz"
+          cd "$DIR"
+          cmake -DCMAKE_BUILD_TYPE=Release .
+          make
+          sudo make install
+          cd ..
         fi
         task --version
 
