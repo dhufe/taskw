@@ -29,11 +29,14 @@ jobs:
           sudo apt-get update && sudo apt-get install -y taskwarrior
         else
           VERSION="${{ matrix.taskwarrior-version }}"
-          # Pre-built binaries are available from v3.0.0 onwards
-          curl -LO "https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.linux-amd64.tar.gz"
-          tar xzf "task-${VERSION}.linux-amd64.tar.gz"
-          # The binary is inside a subdirectory in the tarball
-          sudo mv "task-${VERSION}.linux-amd64/task" /usr/local/bin/
+          # Correct URL for Taskwarrior binary releases
+          URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.linux-amd64.tar.gz"
+          echo "Downloading $URL"
+          curl -L -o "task.tar.gz" "$URL"
+          tar xzf "task.tar.gz"
+          # Find the binary - it might be in a subdir or root of the tar
+          BINARY=$(find . -name task -type f -executable | head -n 1)
+          sudo mv "$BINARY" /usr/local/bin/
         fi
         task --version
 
