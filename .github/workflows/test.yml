@@ -4,41 +4,48 @@ on:
     branches: ["develop"]
   pull_request:
     branches: ["develop"]
+
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: [3.5, 3.6, 3.7, 3.8]
-        taskwarrior-version: [2.5.0, 2.5.1, 2.5.3]
-        exclude:
-          # Taskwarriror 3.5.3 only supported on Python 3.7+.
-          - python-version: 3.5
-            taskwarrior-version: 2.5.3
-          - python-version: 3.6
-            taskwarrior-version: 2.5.3
+        # Added modern Python versions
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        # Testing against standard Ubuntu package (v2.x) and manual v3.x
+        task-source: [apt, latest-v3]
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{matrix.python-version}}
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        python-version: ${{matrix.python-version}}
-    - name: Install Taskwarrior ${{matrix.taskwarrior-version}}
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Taskwarrior (apt)
+      if: matrix.task-source == 'apt'
+      run: sudo apt-get update && sudo apt-get install -y taskwarrior
+
+    - name: Install Taskwarrior (v3)
+      if: matrix.task-source == 'latest-v3'
       run: |
-        sudo apt-get install -y python-dev cmake build-essential libgnutls28-dev uuid-dev gnutls-bin chrpath libssl-dev libfontconfig1-dev
-        git clone https://github.com/GothenburgBitFactory/taskwarrior.git
-        cd taskwarrior
-        git checkout v${{matrix.taskwarrior-version}}
-        cmake .
-        make
-        sudo make install
+        # Download pre-built binary for Linux from official releases
+        # (This is much faster than compiling)
+        curl -LO https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v3.4.2/task-3.4.2.linux-amd64.tar.gz
+        tar xzf task-3.4.2.linux-amd64.tar.gz
+        sudo mv task-3.4.2.linux-amd64/task /usr/local/bin/
         task --version
-        cd ../
+
     - name: Install Dependencies
       run: |
-        python -m pip install --upgrade pip setuptools
-        python setup.py install
-        python -m pip install pytest
+        python -m pip install --upgrade pip
+        # Install dependencies + the package in editable mode
+        pip install -r requirements.txt
+        pip install -r test_requirements.txt
+        pip install -e .
+
     - name: Run Tests
       run: |
         pytest
