@@ -1,4 +1,4 @@
-from distutils.version import LooseVersion
+from packaging.version import Version as LooseVersion
 
 import uuid
 

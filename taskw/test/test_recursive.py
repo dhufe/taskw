@@ -15,7 +15,7 @@ TASK = {'description': "task 2 http://www.google.com/",
 
 
 class TestRecursibe(object):
-    def setup(self):
+    def setup_method(self):
         if not TaskWarriorShellout.can_use():
             # Sometimes the 'task' command line tool is not installed.
             pytest.skip("taskwarrior not installed")

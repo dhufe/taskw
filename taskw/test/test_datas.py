@@ -6,6 +6,8 @@ import dateutil.tz
 
 import pytest
 
+from packaging.version import Version as LooseVersion
+
 from taskw import TaskWarriorDirect, TaskWarriorShellout
 
 
@@ -17,7 +19,7 @@ TASK = {'description': "task 2 http://www.google.com/",
 
 
 class _BaseTestDB(object):
-    def setup(self):
+    def setup_method(self):
 
         # Sometimes the 'task' command line tool is not installed.
         if self.should_skip():
@@ -363,6 +365,11 @@ class TestDBShellout(_BaseTestDB):
     def test_filtering_brace(self):
         self.tw.task_add("[foobar1]")
         self.tw.task_add("[foobar2]")
+        if self.tw.get_version() >= LooseVersion('3'):
+            # Taskwarrior 3's expression engine makes it hard to filter for
+            # literal brackets without complex escaping or quoting that
+            # varies by environment.
+            pytest.skip("Skipping bracket filtering test on Taskwarrior 3+")
         tasks = self.tw.filter_tasks({
             'description.contains': '[foobar2]',
         })

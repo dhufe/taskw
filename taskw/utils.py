@@ -8,7 +8,7 @@ from operator import itemgetter
 import dateutil.tz
 import pytz
 
-from distutils.version import LooseVersion
+from packaging.version import Version as LooseVersion
 
 
 DATE_FORMAT = '%Y%m%dT%H%M%SZ'
@@ -48,7 +48,11 @@ logical_replacements = OrderedDict([
 ])
 
 
-def encode_task_value(key, value, query=False):
+def encode_task_value(key, value, version=None, query=False):
+    if version is None:
+        version = LooseVersion('0')
+    if isinstance(version, str):
+        version = LooseVersion(version)
     if value is None:
         value = ''
     elif isinstance(value, datetime.datetime):
@@ -95,14 +99,14 @@ def encode_query(value, version, query=True):
                 args.append(
                     '%s == "%s"' % (
                         k[:-3],
-                        encode_task_value(k, v, query=query)
+                        encode_task_value(k, v, version=version, query=query)
                     )
                 )
             else:
                 args.append(
                     '%s:%s' % (
                         k,
-                        encode_task_value(k, v, query=query)
+                        encode_task_value(k, v, version=version, query=query)
                     )
                 )
 

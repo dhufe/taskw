@@ -11,7 +11,6 @@ fall back to the older TaskWarriorDirect implementation.
 """
 import abc
 import copy
-from distutils.version import LooseVersion
 import logging
 import os
 import re
@@ -20,6 +19,9 @@ import uuid
 import subprocess
 import sys
 import json
+import warnings
+
+from packaging.version import Version as LooseVersion
 
 import kitchen.text.converters
 
@@ -440,9 +442,9 @@ class TaskWarriorShellout(TaskWarriorBase):
         # Python versions before 3.7
         if (self.get_version() >= LooseVersion('2.5.3') and
                 sys.hexversion < 0x03070000):
-            warnings.once(
+            warnings.warn(
                 "Python < 3.7 with TaskWarrior => 2.5.3 is not suppoprted. "
-                "Task addition may fail.")
+                "Task addition may fail.", stacklevel=2)
 
     def get_configuration_override_args(self):
         config_overrides = self.DEFAULT_CONFIG_OVERRIDES.copy()
