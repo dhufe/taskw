@@ -11,9 +11,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-        # Standard 'apt' for v2.x, or specific versions for v3.x
-        taskwarrior-version: [apt, 3.4.2]
+        python-version: ["3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        # Standard 'apt' for v2.x, or specific versions for v2.x/v3.x
+        taskwarrior-version: [apt, 2.5.0, 2.5.1, 2.5.3, 3.4.2]
+        exclude:
+          # Taskwarrior 2.5.3 only supported on Python 3.7+
+          - python-version: "3.5"
+            taskwarrior-version: 2.5.3
+          - python-version: "3.6"
+            taskwarrior-version: 2.5.3
+          # 'apt' usually provides v2.x, keep it for modern pythons
+          # (Optional: you can also exclude apt for very old pythons if it fails)
 
     steps:
     - uses: actions/checkout@v4
@@ -22,32 +30,59 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
 
     - name: Install Taskwarrior
       run: |
-        if [ "${{ matrix.taskwarrior-version }}" = "apt" ]; then
+        VERSION="${{ matrix.taskwarrior-version }}"
+        if [ "$VERSION" = "apt" ]; then
           sudo apt-get update && sudo apt-get install -y taskwarrior
         else
-          VERSION="${{ matrix.taskwarrior-version }}"
-          # Install build dependencies
+          # Try to find exactly matching version in apt
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libuuid1 uuid-dev gnutls-bin libgnutls28-dev
           
-          # For Taskwarrior 3.x, we need Rust
-          if [[ $VERSION == 3* ]]; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            source $HOME/.cargo/env
-          fi
+          # Use apt-cache madison to find if the requested version is available in any form (e.g. with suffixes)
+          APT_VERSION=$(apt-cache madison taskwarrior | grep "$VERSION" | head -n 1 | awk '{print $3}')
+          
+          if [ -n "$APT_VERSION" ]; then
+            echo "Found version $VERSION in apt as $APT_VERSION. Installing..."
+            sudo apt-get install -y "taskwarrior=$APT_VERSION"
+          else
+            echo "Version $VERSION not available in apt. Compiling from source..."
+            
+            # Install build dependencies
+            sudo apt-get install -y cmake build-essential libuuid1 uuid-dev gnutls-bin libgnutls28-dev
+            
+            # For Taskwarrior 3.x, we need Rust
+            if [[ $VERSION == 3* ]]; then
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              source $HOME/.cargo/env
+            fi
 
-          URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
-          echo "Downloading $URL"
-          curl -L -o "task.tar.gz" "$URL"
-          tar xzf "task.tar.gz"
-          cd "task-${VERSION}"
-          cmake -DCMAKE_BUILD_TYPE=Release .
-          make
-          sudo make install
-          cd ..
+            # Handle directory naming differences between releases
+            if [[ $VERSION == 3* ]]; then
+              URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
+              DIR="task-${VERSION}"
+            else
+              URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.tar.gz"
+              DIR="task-${VERSION}"
+            fi
+            
+            echo "Downloading $URL"
+            if ! curl -L -o "task.tar.gz" "$URL"; then
+               echo "Failed to download $URL, trying alternative..."
+               URL="https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/taskwarrior-${VERSION}.tar.gz"
+               DIR="taskwarrior-${VERSION}"
+               curl -L -o "task.tar.gz" "$URL"
+            fi
+
+            tar xzf "task.tar.gz"
+            cd "$DIR"
+            cmake -DCMAKE_BUILD_TYPE=Release .
+            make
+            sudo make install
+            cd ..
+          fi
         fi
         task --version
 
@@ -59,4 +94,5 @@ jobs:
 
     - name: Run Tests
       run: |
-        pytest
+        # Use python -m pytest to ensure we use the version installed for the current python
+        python -m pytest
