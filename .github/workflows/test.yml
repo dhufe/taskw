@@ -29,8 +29,10 @@ jobs:
           sudo apt-get update && sudo apt-get install -y taskwarrior
         else
           VERSION="${{ matrix.taskwarrior-version }}"
+          # Pre-built binaries are available from v3.0.0 onwards
           curl -LO "https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${VERSION}/task-${VERSION}.linux-amd64.tar.gz"
           tar xzf "task-${VERSION}.linux-amd64.tar.gz"
+          # The binary is inside a subdirectory in the tarball
           sudo mv "task-${VERSION}.linux-amd64/task" /usr/local/bin/
         fi
         task --version
@@ -42,5 +44,5 @@ jobs:
         pip install -e .
 
     - name: Run Tests
-      run: pytest
+      run: |
         pytest
